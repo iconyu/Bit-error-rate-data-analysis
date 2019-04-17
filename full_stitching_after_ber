@@ -1,0 +1,154 @@
+import pandas as pd
+import numpy as np
+import xgboost as xgb
+import lightgbm as lgb
+from sklearn.cross_validation import train_test_split
+from sklearn.decomposition import PCA
+
+cols =['wave_id', 'code', 'wss', 'evoa', 'oau', 'fiu', 'otu_power', 
+       'before_OSNRrec', 'after_OSNRrec', 'before_ber', 'after_ber', 
+       'fiber_type_length_list', 'before_single_power_matrix', 'after_single_power_matrix', 
+       'before_och_single_power_array', 'after_och_single_power_array', 'standard_oa_outpower']
+#list和array进行分割
+def str_to_list(res):
+    data = []
+    res = res.split("[")[1].split("]")[0].split(",")
+    for j in range(len(res)):
+        a = res[j].split("'")[1].split("'")[0]
+        if(a == '655-LEAF'):
+            a = '655'
+        if(a == '/'):
+            a = '0'
+        data.append(float(a))
+    return data
+#matrix进行分割
+def arr_to_list(res):
+    data = []
+    res = res.split("[[")[1].split("]]")[0].split(",")
+    for j in range(len(res)):
+        a = res[j].split("'")[1].split("'")[0]
+        data.append(float(a))
+    return data
+#求list和array最大长度
+def d1_length(df,j):
+    length = []
+    for i in range(len(df)):
+        data = str_to_list(df.iloc[i][j])
+        length.append(len(data))
+    max_length = max(length)
+    return max_length
+#求array最大长度
+def d2_length(df,j):
+    length = []
+    for i in range(len(df)):
+        data = arr_to_list(df.iloc[i][j])
+        length.append(len(data))
+    max_length = max(length)
+    return max_length
+#合并每行数据
+def completion(df,i):
+    data = []
+    wave_id = df.iloc[i][1]
+    code = df.iloc[i][2]
+    wss = df.iloc[i][3]
+    evoa = df.iloc[i][4]
+    oau = df.iloc[i][5]
+    fiu = df.iloc[i][6]
+    otu_power = df.iloc[i][7]
+    before_OSNRrec = df.iloc[i][8]
+    after_OSNRrec = df.iloc[i][9]
+    before_ber = df.iloc[i][10]
+    
+    max_length_fiber_type_length_list = d1_length(df,11)  
+    max_length_before_single_power_matrix = d2_length(df,12)
+    max_length_after_single_power_matrix = d2_length(df,13)
+    max_length_before_och_single_power_array = d1_length(df,14)
+    max_length_after_och_single_power_array = d1_length(df,15)
+    max_length_standard_oa_outpower = d1_length(df,16)
+    
+    data.append(wave_id)
+    data.append(code)
+    data.append(wss)
+    data.append(evoa)
+    data.append(oau)
+    data.append(fiu)
+    data.append(otu_power)
+    data.append(before_OSNRrec)
+    data.append(after_OSNRrec)
+    data.append(before_ber)
+    
+    fiber_type_length_list = str_to_list(df.iloc[i][11])
+    while(len(fiber_type_length_list) < max_length_fiber_type_length_list):
+        fiber_type_length_list.append(0)
+    data.extend(fiber_type_length_list)
+        
+    before_single_power_matrix = arr_to_list(df.iloc[i][12])
+    while(len(before_single_power_matrix) < max_length_before_single_power_matrix):
+        before_single_power_matrix.append(0)
+    data.extend(before_single_power_matrix)
+        
+    after_single_power_matrix = arr_to_list(df.iloc[i][13])
+    while(len(after_single_power_matrix) < max_length_after_single_power_matrix):
+        after_single_power_matrix.append(0)
+    data.extend(after_single_power_matrix)
+    
+    before_och_single_power_array = str_to_list(df.iloc[i][14])
+    while(len(before_och_single_power_array) < max_length_before_och_single_power_array):
+        before_och_single_power_array.append(0)
+    data.extend(before_och_single_power_array)
+        
+    after_och_single_power_array = str_to_list(df.iloc[i][15])  
+    while(len(after_och_single_power_array) < max_length_after_och_single_power_array):
+        after_och_single_power_array.append(0)
+    data.extend(after_och_single_power_array)
+        
+    standard_oa_outpower = str_to_list(df.iloc[i][16])
+    while(len(standard_oa_outpower) < max_length_standard_oa_outpower):
+        standard_oa_outpower.append(0)
+    data.extend(standard_oa_outpower)
+    
+    return data
+
+#xgb回归
+def xgbRegressor(X_train,y_train):
+    model = xgb.XGBRegressor()
+    model.fit(X_train,y_train)
+    return model
+
+#lgb回归
+def lgbRegressor(X_train,y_train):
+    model = lgb.LGBMRegressor()
+    model.fit(X_train,y_train)
+    return model
+
+#计算测试集准确率    
+def test(X_test,y_test,model):
+    y_pred = model.predict(X_test)
+    y_test = y_test.values
+    #num = sum(abs(y_pred - y_test) <= abs(0.05*y_test)) 
+    num = sum(abs(y_pred - y_test) <= 0.05)
+    acc = num / float(len(y_test))
+    print(y_pred,y_test)
+    print('测试集总个数',len(y_test))
+    print('测试集满足条件的个数',num)
+    print('测试集准确率',acc) 
+
+if __name__ == '__main__':
+    df = pd.read_csv('final_model_result.csv')
+    dt = pd.DataFrame()
+    for i in range(len(df)):
+        data = pd.DataFrame(np.array(completion(df,i)).reshape(1,-1))
+        dt = dt.append(data)   #新样本dataframe
+    
+    #降维
+    pca = PCA(n_components=0.95)  #保留方差比
+    X_reduced = pca.fit_transform(dt)
+    
+    X_train,X_test,y_train,y_test = train_test_split(pd.DataFrame(X_reduced),df.iloc[:,0],test_size=0.3)
+    #X_train,X_test,y_train,y_test = train_test_split(dt,df.iloc[:,0],test_size=0.3)
+    
+    #model = xgbRegressor(X_train,y_train)
+    model = lgbRegressor(X_train,y_train)
+    test(X_test,y_test,model)
+
+    
