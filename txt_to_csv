@@ -1,0 +1,15 @@
+import pandas as pd
+import numpy as np
+import simplejson as json
+
+#txt转csv格式
+def txt_to_csv():
+    with open('final_model_resultfinal_wss3_wss4_attenuation.txt','r')as data:
+        for line in data:
+            line1 = json.loads(line)
+            df = pd.DataFrame.from_dict(line1, orient='index')
+            df = np.transpose(np.array(df))
+            df = pd.DataFrame(df)
+            df.to_csv('final_model_resultfinal_wss3_wss4_attenuation.csv', mode='a', header = False)
+if __name__ == '__main__':
+    txt_to_csv()
