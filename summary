@@ -1,0 +1,34 @@
+一、数据预处理
+1.利用txt_to_csv.py程序将final_model_result.txt转为final_model_result.csv，共238行，17列。其中标签列为after_ber，剩余为特征列。
+fiber_type_length_list	列表
+before_single_power_matrix	矩阵
+after_single_power_matrix	矩阵
+before_och_single_power_array	数组
+after_och_single_power_array	数组
+standard_oa_outpower	列表
+2.由于数据中存在list、matrix和array类型，无法直接输入到机器学习模型中进行预测，因此需要对数据进行预处理。
+
+二、建立模型
+1.1	方案一
+1.数据中的异常值和特殊值
+•	fiber_type_length_list：‘655-LEAF’中包含非数值部分，将其舍去，只取655
+•	before_och_single_power_array/after_och_single_power_array：包含’\’，无数值，将其填充为0（具体填什么需要思考）
+•	before_single_power_matrix/ after_och_single_power_array：包含‘-100’，认为是异常值，目前无处理
+2.在不考虑数据含义时，从大数据的角度出发，将数据全部进行分割拼接。其中二维矩阵先转为一维数组，再进行分割拼接。但是由于每行数据分割后长度不等，需要进行填充补全。经查找，整个样本中，每列最大个数如下：
+•	fiber_type_length_list：46
+•	before_single_power_matrix/ after_single_power_matrix ：1608
+•	before_och_single_power_array/ after_och_single_power_array ：32
+•	standard_oa_outpower：33
+当数据长度小于每列最大个数时，用0填充，最后数据集变为238行，3345列。
+ 
+3.测试集随机划分30%，正确率按±5%test为标准，使用XGBoost和Lgbm机器学习的模型，测试集预测正确的个数为2，非常低。
+4.思考可能是由于特征维度过大，利用PCA进行降维，保证方差比为0.95，特征列降到42维，再进行预测，此时测试集预测正确的个数为5，也非常低。
+【改进方法，对数据进行预处理和特征工程，对wave进行分组，使用神经网络模型】
+
+1.2	方案二
+1.对wave_id进行分组，只是用以下11列特征：wave_id、code、wss、evoa、oau、fiu、otu_power、before_OSNRrec、after_OSNRrec、before_ber。
+2.其中训练集为wave_id、wave_id±1和wave_id±2的样本，测试集为wave_id。正确率比不分组高，测试正确的个数大概为5个。
+
+1.3	方案三
+    通过观察数据，发现after_OSNRrec、before_OSNRrec、 before_ber和after_ber强相关。只选取这三列特征。
+    由于ber数值过小，先对before_ber和after_ber做norm.ppf操作，再进行线性模型预测，正确率可达到91%左右。
